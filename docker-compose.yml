@@ -1,8 +1,8 @@
-version: '3.8'
-
 services:
   fairdraw:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: fairdraw-app
     restart: unless-stopped
     ports:
@@ -16,12 +16,21 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - SESSION_SECRET=${SESSION_SECRET}
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3001}
+      # Reduce memory usage on low-RAM VDS
+      - NODE_OPTIONS=--max-old-space-size=256
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+    # Limit memory to prevent OOM kills on small VDS
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
     logging:
       driver: json-file
       options:
