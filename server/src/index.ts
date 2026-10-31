@@ -104,6 +104,21 @@ process.on('SIGINT', () => {
 
 // Start server
 async function start() {
+  // Диагностика переменных окружения
+  console.log('=== Диагностика конфигурации ===');
+  console.log(`NODE_ENV: ${process.env.NODE_ENV || 'не установлен'}`);
+  console.log(`PORT: ${PORT}`);
+  console.log(`DB_PATH: ${process.env.DB_PATH || 'не установлен'}`);
+  console.log(`ADMIN_PASSWORD: ${process.env.ADMIN_PASSWORD ? '✓ установлен' : '✗ НЕ УСТАНОВЛЕН!'}`);
+  console.log(`SESSION_SECRET: ${process.env.SESSION_SECRET ? '✓ установлен' : '⚠ используется default'}`);
+  console.log(`CORS_ORIGIN: ${process.env.CORS_ORIGIN || 'http://localhost:3000'}`);
+  console.log('================================');
+  
+  if (!process.env.ADMIN_PASSWORD) {
+    console.error('⚠️  ВНИМАНИЕ: ADMIN_PASSWORD не установлен! Авторизация не будет работать.');
+    console.error('Добавьте ADMIN_PASSWORD=ваш_пароль в файл .env');
+  }
+  
   // Run migrations
   console.log('Initializing database...');
   await runMigrations();
@@ -111,7 +126,6 @@ async function start() {
   
   app.listen(PORT, () => {
     console.log(`FairDraw server running on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 }
 
