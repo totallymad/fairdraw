@@ -1,14 +1,14 @@
 services:
   fairdraw:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: fairdraw:latest
     container_name: fairdraw-app
     restart: unless-stopped
+    env_file:
+      - .env
     ports:
       - "${PORT:-3001}:3001"
     volumes:
-      - fairdraw-data:/app/data
+      - fairdraw-/app/data
     environment:
       - NODE_ENV=production
       - PORT=3001
@@ -30,5 +30,5 @@ services:
         max-file: "3"
 
 volumes:
-  fairdraw-data:
+  fairdraw-
     driver: local
