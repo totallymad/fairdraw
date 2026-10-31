@@ -1,0 +1,16 @@
+node_modules
+dist
+.git
+.gitignore
+*.md
+.env
+.env.*
+.vscode
+.idea
+coverage
+server/node_modules
+server/dist
+server/data
+docker-compose.yml
+nginx
+LICENSE

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/database.js';
 import { sha256, canonicalParticipants, determineWinner } from '../lib/crypto.js';
-import { getCurrentRound, fetchDrandRandomness, verifyDrandSignature, getRoundTime } from '../lib/drand.js';
+import { getCurrentRound, fetchDrandRandomness, verifyDrandSignature, getRoundTime, DRAND_CHAIN } from '../lib/drand.js';
 import crypto from 'crypto';
 
 const router = Router();
@@ -176,9 +176,6 @@ router.post('/:id/finalize', requireAuth, async (req: Request, res: Response) =>
     // Select future round (5 rounds ahead, ~15 seconds for Quicknet)
     const currentRound = getCurrentRound();
     const targetRound = currentRound + 5;
-    
-    // Import chain hash
-    const { DRAND_CHAIN } = await import('../lib/drand.js');
     
     db.prepare(`
       UPDATE draws 

@@ -1,3 +1,4 @@
+# Stage 1: Build frontend
 FROM node:20-alpine AS frontend-build
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -5,19 +6,24 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
+# Stage 2: Build backend (includes dev dependencies for TypeScript compilation)
 FROM node:20-alpine AS backend-build
+WORKDIR /app
+COPY server/package.json ./server/
 WORKDIR /app/server
-COPY server/package.json server/package-lock.json* ./
-RUN npm ci
+RUN npm install
 COPY server/ .
-RUN npm run build
+RUN npx tsc
 
+# Stage 3: Production (only runtime dependencies)
 FROM node:20-alpine AS production
 WORKDIR /app
 
-# Install production dependencies for backend
-COPY server/package.json server/package-lock.json* ./server/
-RUN cd server && npm ci --omit=dev
+# Install only production dependencies
+COPY server/package.json ./server/
+WORKDIR /app/server
+RUN npm install --omit=dev
+WORKDIR /app
 
 # Copy built frontend
 COPY --from=frontend-build /app/dist ./dist
@@ -25,7 +31,7 @@ COPY --from=frontend-build /app/dist ./dist
 # Copy built backend
 COPY --from=backend-build /app/server/dist ./server/dist
 
-# Create data directory
+# Create data directory for SQLite
 RUN mkdir -p /app/data
 
 # Environment
