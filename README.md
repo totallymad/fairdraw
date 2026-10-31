@@ -27,9 +27,9 @@ fairdraw/
 ```
 
 **Frontend:** React + TypeScript + Vite + Tailwind CSS  
-**Backend:** Node.js + Express + better-sqlite3  
+**Backend:** Node.js + Express + sql.js  
 **Случайность:** drand Quicknet (публичный API)  
-**Хранение:** SQLite (persistent volume в Docker)
+**Хранение:** SQLite через sql.js (WebAssembly, не требует компиляции)
 
 ## Быстрый старт (локально)
 
@@ -73,7 +73,25 @@ cp .env.example .env
 curl -fsSL https://get.docker.com | sh
 ```
 
-### 2. Клонирование и настройка
+### 2. Настройка swap (обязательно для VDS с RAM < 2GB)
+
+Если на вашем VDS меньше 2GB RAM, обязательно создайте swap-файл:
+
+```bash
+# Создайте swap-файл 2GB
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+
+# Добавьте в /etc/fstab для автоматического включения при перезагрузке
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+# Проверьте
+free -h
+```
+
+### 3. Клонирование и настройка
 
 ```bash
 git clone <your-repo-url> fairdraw
@@ -82,15 +100,45 @@ cp .env.example .env
 nano .env  # Заполните ADMIN_PASSWORD и SESSION_SECRET
 ```
 
-### 3. Запуск
+### 4. Сборка и запуск
 
 ```bash
+# Сборка может занять 5-15 минут на слабом VDS
 docker compose up -d --build
+```
+
+**Если сборка зависает или падает с ошибкой OOM:**
+
+```bash
+# Убедитесь, что swap активирован
+free -h
+
+# Увеличьте swap до 4GB если нужно
+sudo swapoff /swapfile
+sudo fallocate -l 4G /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+
+# Попробуйте сборку снова
+docker compose build --no-cache
+```
+
+### 5. Проверка работоспособности
+
+```bash
+# Проверьте статус контейнера
+docker compose ps
+
+# Проверьте логи
+docker compose logs -f
+
+# Проверьте health endpoint
+curl http://localhost:3001/api/health
 ```
 
 Приложение будет доступно на порту 3001.
 
-### 4. Настройка Nginx + HTTPS
+### 6. Настройка Nginx + HTTPS
 
 ```bash
 # Установите Nginx и Certbot
@@ -160,6 +208,64 @@ systemctl reload nginx
 - ✅ Нет stack trace в ответах
 - ✅ Ограничение размера запросов (1MB)
 
+## Решение проблем
+
+### Сборка зависает на `npm install`
+
+**Причина:** Нехватка RAM для компиляции нативных модулей (better-sqlite3)
+
+**Решение:**
+```bash
+# 1. Создайте swap-файл (см. раздел "Настройка swap")
+# 2. Ограничьте параллелизм npm
+export npm_config_maxsockets=2
+# 3. Попробуйте сборку снова
+docker compose build --no-cache
+```
+
+### Ошибка `ENOMEM` или `JavaScript heap out of memory`
+
+**Причина:** Node.js исчерпал доступную память
+
+**Решение:**
+```bash
+# Увеличьте лимит памяти в docker-compose.yml
+environment:
+  - NODE_OPTIONS=--max-old-space-size=512
+
+# Или добавьте больше swap
+```
+
+### Контейнер не запускается после сборки
+
+**Причина:** Ошибка в конфигурации или базе данных
+
+**Решение:**
+```bash
+# Проверьте логи
+docker compose logs fairdraw
+
+# Проверьте права на volume
+docker volume ls
+docker volume inspect fairdraw_fairdraw-data
+
+# Пересоздайте volume (ВНИМАНИЕ: удалит все данные!)
+docker compose down -v
+docker compose up -d
+```
+
+### Порт 3001 уже занят
+
+**Решение:**
+```bash
+# Измените порт в .env
+PORT=3002
+
+# Перезапустите
+docker compose down
+docker compose up -d
+```
+
 ## Известные ограничения
 
 1. **BLS-подпись:** В текущей версии верификация подписи drand проверяет формат, но не выполняет полную криптографическую проверку BLS12-381. Для полной верификации необходима интеграция с библиотекой BLS (например, `@noble/bls12-381`).
@@ -169,6 +275,20 @@ systemctl reload nginx
 3. **Демо-режим frontend:** В standalone-режиме (без backend) frontend использует симуляцию drand через Web Crypto API.
 
 4. **Один розыгрыш за раз:** Нет очередей или параллельного выполнения.
+
+## Требования к системе
+
+**Минимальные:**
+- CPU: 1 vCPU
+- RAM: 512MB + 2GB swap
+- Disk: 1GB
+- OS: Ubuntu 20.04+ / Debian 11+
+
+**Рекомендуемые:**
+- CPU: 2 vCPU
+- RAM: 2GB
+- Disk: 5GB
+- OS: Ubuntu 22.04 LTS
 
 ## Лицензия
 

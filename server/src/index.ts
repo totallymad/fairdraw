@@ -5,7 +5,7 @@ import session from 'express-session';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { runMigrations } from './db/database.js';
+import { runMigrations, closeDb } from './db/database.js';
 import drawsRouter from './routes/draws.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -89,12 +89,25 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ error: 'Внутренняя ошибка сервера' });
 });
 
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, closing database...');
+  closeDb();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, closing database...');
+  closeDb();
+  process.exit(0);
+});
+
 // Start server
 async function start() {
   // Run migrations
-  console.log('Running database migrations...');
-  runMigrations();
-  console.log('Migrations complete.');
+  console.log('Initializing database...');
+  await runMigrations();
+  console.log('Database ready.');
   
   app.listen(PORT, () => {
     console.log(`FairDraw server running on port ${PORT}`);
