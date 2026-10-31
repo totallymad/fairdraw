@@ -1,5 +1,40 @@
+# Dependencies
 node_modules/
-.next/
+server/node_modules/
+
+# Build output
 dist/
-build/
+server/dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.db-journal
+*.db-wal
+data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
 *.log
+npm-debug.log*
+
+# Testing
+coverage/
+
+# Docker
+.docker/
+.next/
+build/
