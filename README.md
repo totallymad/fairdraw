@@ -27,9 +27,9 @@ fairdraw/
 ```
 
 **Frontend:** React + TypeScript + Vite + Tailwind CSS  
-**Backend:** Node.js + Express + better-sqlite3  
+**Backend:** Node.js + Express + sql.js  
 **Случайность:** drand Quicknet (публичный API)  
-**Хранение:** SQLite (persistent volume в Docker)
+**Хранение:** SQLite через sql.js (WebAssembly, не требует компиляции)
 
 ## Быстрый старт (локально)
 

@@ -15,12 +15,12 @@ function requireAuth(req: Request, res: Response, next: Function) {
 }
 
 // GET /api/draws - List all draws
-router.get('/', (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
-    const db = getDb();
+    const db = await getDb();
     const draws = db.prepare(`
       SELECT d.*, 
-        (SELECT COUNT(*) FROM participants WHERE draw_id = d.id) as participant_count
+        (SELECT COUNT(*) as count FROM participants WHERE draw_id = d.id) as participant_count
       FROM draws d 
       ORDER BY d.created_at DESC
     `).all();
@@ -33,7 +33,7 @@ router.get('/', (req: Request, res: Response) => {
 });
 
 // POST /api/draws - Create a new draw
-router.post('/', requireAuth, (req: Request, res: Response) => {
+router.post('/', requireAuth, async (req: Request, res: Response) => {
   try {
     const { title, description } = req.body;
     
@@ -51,7 +51,7 @@ router.post('/', requireAuth, (req: Request, res: Response) => {
     }
     
     const id = crypto.randomBytes(6).toString('hex');
-    const db = getDb();
+    const db = await getDb();
     
     db.prepare(`
       INSERT INTO draws (id, title, description, status) 
@@ -67,9 +67,9 @@ router.post('/', requireAuth, (req: Request, res: Response) => {
 });
 
 // GET /api/draws/:id - Get draw details
-router.get('/:id', (req: Request, res: Response) => {
+router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const db = getDb();
+    const db = await getDb();
     const draw = db.prepare('SELECT * FROM draws WHERE id = ?').get(req.params.id);
     
     if (!draw) {
@@ -80,7 +80,7 @@ router.get('/:id', (req: Request, res: Response) => {
       'SELECT * FROM participants WHERE draw_id = ? ORDER BY position'
     ).all(req.params.id);
     
-    res.json({ ...(draw as object), participants });
+    res.json({ ...draw, participants });
   } catch (error) {
     console.error('Error getting draw:', error);
     res.status(500).json({ error: 'Внутренняя ошибка сервера' });
@@ -88,9 +88,9 @@ router.get('/:id', (req: Request, res: Response) => {
 });
 
 // PUT /api/draws/:id/participants - Update participants (only in draft)
-router.put('/:id/participants', requireAuth, (req: Request, res: Response) => {
+router.put('/:id/participants', requireAuth, async (req: Request, res: Response) => {
   try {
-    const db = getDb();
+    const db = await getDb();
     const draw = db.prepare('SELECT * FROM draws WHERE id = ?').get(req.params.id) as any;
     
     if (!draw) {
@@ -122,16 +122,13 @@ router.put('/:id/participants', requireAuth, (req: Request, res: Response) => {
     }
     
     // Replace all participants
-    const deleteStmt = db.prepare('DELETE FROM participants WHERE draw_id = ?');
-    const insertStmt = db.prepare(
-      'INSERT INTO participants (id, draw_id, name, vk_url, position) VALUES (?, ?, ?, ?, ?)'
-    );
-    
     const transaction = db.transaction(() => {
-      deleteStmt.run(req.params.id);
+      db.prepare('DELETE FROM participants WHERE draw_id = ?').run(req.params.id);
       participants.forEach((p: { name: string; vk_url?: string }, i: number) => {
         const pId = crypto.randomBytes(6).toString('hex');
-        insertStmt.run(pId, req.params.id, p.name.trim(), p.vk_url?.trim() || null, i + 1);
+        db.prepare(
+          'INSERT INTO participants (id, draw_id, name, vk_url, position) VALUES (?, ?, ?, ?, ?)'
+        ).run(pId, req.params.id, p.name.trim(), p.vk_url?.trim() || null, i + 1);
       });
     });
     
@@ -151,7 +148,7 @@ router.put('/:id/participants', requireAuth, (req: Request, res: Response) => {
 // POST /api/draws/:id/finalize - Finalize draw and select drand round
 router.post('/:id/finalize', requireAuth, async (req: Request, res: Response) => {
   try {
-    const db = getDb();
+    const db = await getDb();
     const draw = db.prepare('SELECT * FROM draws WHERE id = ?').get(req.params.id) as any;
     
     if (!draw) {
@@ -198,7 +195,7 @@ router.post('/:id/finalize', requireAuth, async (req: Request, res: Response) =>
 // POST /api/draws/:id/execute - Get randomness and determine winner
 router.post('/:id/execute', requireAuth, async (req: Request, res: Response) => {
   try {
-    const db = getDb();
+    const db = await getDb();
     const draw = db.prepare('SELECT * FROM draws WHERE id = ?').get(req.params.id) as any;
     
     if (!draw) {
@@ -248,13 +245,13 @@ router.post('/:id/execute', requireAuth, async (req: Request, res: Response) => 
     `).run(beacon.randomness, beacon.signature, winner.id, req.params.id);
     
     const updated = db.prepare('SELECT * FROM draws WHERE id = ?').get(req.params.id);
-    res.json({ ...(updated as object), winner });
+    res.json({ ...updated, winner });
   } catch (error) {
     console.error('Error executing draw:', error);
     
     // Mark as failed
     try {
-      const db = getDb();
+      const db = await getDb();
       db.prepare("UPDATE draws SET status = 'failed' WHERE id = ?").run(req.params.id);
     } catch {}
     
@@ -263,9 +260,9 @@ router.post('/:id/execute', requireAuth, async (req: Request, res: Response) => 
 });
 
 // GET /api/draws/:id/verify - Verify draw result
-router.get('/:id/verify', (req: Request, res: Response) => {
+router.get('/:id/verify', async (req: Request, res: Response) => {
   try {
-    const db = getDb();
+    const db = await getDb();
     const draw = db.prepare('SELECT * FROM draws WHERE id = ?').get(req.params.id) as any;
     
     if (!draw) {
@@ -305,7 +302,7 @@ router.get('/:id/verify', (req: Request, res: Response) => {
         name: winner.name,
         position: winner.position,
       } : null,
-      verification_data: {
+      verification: {
         participants_hash: draw.participants_hash,
         recalculated_hash: recalculatedHash,
         drand_chain_hash: draw.drand_chain_hash,

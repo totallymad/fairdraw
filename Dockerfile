@@ -4,9 +4,8 @@
 FROM node:22-alpine AS frontend-build
 WORKDIR /app
 
-# Install dependencies with reduced concurrency for low-RAM VDS
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund --maxsockets=2
+RUN npm ci --no-audit --no-fund
 
 COPY . .
 RUN npm run build
@@ -16,12 +15,9 @@ RUN npm run build
 # ============================================
 FROM node:22-alpine AS backend-build
 
-# Install build tools for native modules (better-sqlite3)
-RUN apk add --no-cache python3 make g++
-
 WORKDIR /app/server
 COPY server/package.json ./
-RUN npm install --no-audit --no-fund --maxsockets=2
+RUN npm install --no-audit --no-fund
 
 COPY server/ .
 RUN npx tsc
@@ -31,15 +27,12 @@ RUN npx tsc
 # ============================================
 FROM node:22-alpine AS production
 
-# Runtime deps for better-sqlite3
-RUN apk add --no-cache libstdc++
-
 WORKDIR /app
 
-# Install only production dependencies
+# Install only production dependencies (no build tools needed!)
 COPY server/package.json ./server/
 WORKDIR /app/server
-RUN npm install --omit=dev --no-audit --no-fund --maxsockets=2
+RUN npm install --omit=dev --no-audit --no-fund
 WORKDIR /app
 
 # Copy built frontend
@@ -55,7 +48,6 @@ RUN mkdir -p /app/data
 ENV NODE_ENV=production
 ENV PORT=3001
 ENV DB_PATH=/app/data/fairdraw.db
-# Reduce Node.js memory footprint
 ENV NODE_OPTIONS="--max-old-space-size=256"
 
 EXPOSE 3001

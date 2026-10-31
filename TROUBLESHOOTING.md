@@ -120,21 +120,9 @@ ENV NODE_OPTIONS="--max-old-space-size=256"
 
 ## Проблема: better-sqlite3 не компилируется
 
-### Симптомы
-```
-gyp ERR! build error
-gyp ERR! stack Error: not found: make
-```
-
 ### Решение
 
-Установите build-инструменты в Dockerfile:
-
-```dockerfile
-RUN apk add --no-cache python3 make g++
-```
-
-(Уже добавлено в текущем Dockerfile)
+**Эта проблема больше не актуальна!** Проект использует `sql.js` (WebAssembly), который не требует компиляции нативных модулей. Сборка работает на любых VDS без дополнительных инструментов.
 
 ## Проблема: Порт уже занят
 
