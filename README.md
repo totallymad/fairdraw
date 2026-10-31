@@ -33,24 +33,37 @@ fairdraw/
 
 ## Быстрый старт (локально)
 
-### Frontend (разработка)
+### Production (Docker, рекомендуется)
 
 ```bash
-npm install
-npm run dev
+# Соберите на локальной машине
+docker build -t fairdraw:latest .
+
+# Запустите
+docker compose up -d
 ```
 
-Frontend будет доступен на http://localhost:3000
+Приложение будет доступно на http://localhost:3001
 
-### Backend (разработка)
+### Разработка (frontend + backend отдельно)
 
+**Backend:**
 ```bash
 cd server
 npm install
 npm run dev
 ```
 
-Backend будет доступен на http://localhost:3001
+**Frontend (в другом терминале):**
+```bash
+npm install
+npm run dev
+```
+
+Frontend: http://localhost:3000  
+Backend: http://localhost:3001
+
+> **Важно:** Frontend работает только вместе с backend. Все данные хранятся в SQLite на сервере и доступны всем пользователям.
 
 ### Переменные окружения
 

@@ -1,20 +1,39 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDrawStore } from '../store/drawStore';
 import { motion } from 'framer-motion';
+import { api } from '../lib/api';
 import {
   ArrowLeft, Users, Trophy, Copy, Download, ExternalLink,
-  CheckCircle, Clock, Hash, ChevronDown, ChevronUp, Shield
+  CheckCircle, Clock, Hash, ChevronDown, ChevronUp, Shield, Loader2
 } from 'lucide-react';
+import type { Draw } from '../types';
 
 export function PublicDrawPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getDraw } = useDrawStore();
-  const draw = getDraw(id || '');
-
+  
+  const [draw, setDraw] = useState<Draw | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [showVerification, setShowVerification] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (id) {
+      api.getDraw(id)
+        .then(data => setDraw(data))
+        .catch(err => console.error('Load error:', err))
+        .finally(() => setIsLoading(false));
+    }
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-16">
+        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+      </div>
+    );
+  }
 
   if (!draw) {
     return (
@@ -32,7 +51,7 @@ export function PublicDrawPage() {
   }
 
   const winner = draw.winner_id ? draw.participants.find(p => p.id === draw.winner_id) : null;
-  const publicUrl = `${window.location.origin}/public/${draw.id}`;
+  const publicUrl = `${window.location.origin}/#/public/${draw.id}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(publicUrl);

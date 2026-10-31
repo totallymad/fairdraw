@@ -1,25 +1,34 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDrawStore } from '../store/drawStore';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 
 export function CreateDrawPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { createDraw, isAuthenticated } = useDrawStore();
   const navigate = useNavigate();
 
-  if (!isAuthenticated) {
-    navigate('/login');
-    return null;
-  }
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/login');
+    }
+  }, [isAuthenticated, navigate]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
     
-    const id = createDraw(title.trim(), description.trim());
-    navigate(`/draw/${id}`);
+    setIsSubmitting(true);
+    try {
+      const id = await createDraw(title.trim(), description.trim());
+      navigate(`/draw/${id}`);
+    } catch (err) {
+      console.error('Create error:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -70,10 +79,11 @@ export function CreateDrawPage() {
           <div className="flex gap-3 pt-4">
             <button
               type="submit"
-              disabled={!title.trim()}
-              className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+              disabled={!title.trim() || isSubmitting}
+              className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
             >
-              Создать
+              {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isSubmitting ? 'Создание...' : 'Создать'}
             </button>
             <button
               type="button"

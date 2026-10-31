@@ -1,10 +1,14 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useDrawStore } from '../store/drawStore';
-import { Shuffle, LogIn, LogOut, Plus } from 'lucide-react';
+import { Shuffle, LogIn, LogOut, Plus, Loader2 } from 'lucide-react';
 
 export function Header() {
-  const { isAuthenticated, logout } = useDrawStore();
+  const { isAuthenticated, logout, isLoading } = useDrawStore();
   const location = useLocation();
+
+  const handleLogout = async () => {
+    await logout();
+  };
 
   return (
     <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200 sticky top-0 z-50">
@@ -28,10 +32,11 @@ export function Header() {
             
             {isAuthenticated ? (
               <button
-                onClick={logout}
-                className="flex items-center gap-1.5 px-3 py-2 text-slate-600 hover:text-slate-800 transition-colors text-sm"
+                onClick={handleLogout}
+                disabled={isLoading}
+                className="flex items-center gap-1.5 px-3 py-2 text-slate-600 hover:text-slate-800 transition-colors text-sm disabled:opacity-50"
               >
-                <LogOut className="w-4 h-4" />
+                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
                 Выйти
               </button>
             ) : (

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import { HomePage } from './pages/HomePage';
 import { CreateDrawPage } from './pages/CreateDrawPage';
@@ -5,8 +6,15 @@ import { DrawDetailPage } from './pages/DrawDetailPage';
 import { PublicDrawPage } from './pages/PublicDrawPage';
 import { LoginPage } from './pages/LoginPage';
 import { Header } from './components/Header';
+import { useDrawStore } from './store/drawStore';
 
 function App() {
+  const { checkAuth, isAuthenticated } = useDrawStore();
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
   return (
     <HashRouter>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
