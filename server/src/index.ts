@@ -7,6 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { runMigrations, closeDb } from './db/database.js';
 import drawsRouter from './routes/draws.js';
+import authRouter from './routes/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -72,6 +73,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 // API routes
+app.use('/api/auth', authRouter);
 app.use('/api/draws', drawsRouter);
 
 // Serve frontend in production
