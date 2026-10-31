@@ -122,7 +122,7 @@ router.put('/:id/participants', requireAuth, async (req: Request, res: Response)
     }
     
     // Replace all participants
-    const transaction = db.transaction(() => {
+    db.transaction(() => {
       db.prepare('DELETE FROM participants WHERE draw_id = ?').run(req.params.id);
       participants.forEach((p: { name: string; vk_url?: string }, i: number) => {
         const pId = crypto.randomBytes(6).toString('hex');
@@ -131,8 +131,6 @@ router.put('/:id/participants', requireAuth, async (req: Request, res: Response)
         ).run(pId, req.params.id, p.name.trim(), p.vk_url?.trim() || null, i + 1);
       });
     });
-    
-    transaction();
     
     const updatedParticipants = db.prepare(
       'SELECT * FROM participants WHERE draw_id = ? ORDER BY position'
