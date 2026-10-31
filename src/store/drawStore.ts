@@ -1,178 +1,230 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { api } from '../lib/api';
 import type { Draw, Participant, DrawStatus } from '../types';
-import { sha256, canonicalParticipants, simulateDrandRandomness, determineWinner, generateId, getCurrentDrandRound } from '../lib/crypto';
 
 interface DrawStore {
   draws: Draw[];
   isAuthenticated: boolean;
-  login: (password: string) => boolean;
-  logout: () => void;
-  createDraw: (title: string, description: string) => string;
-  updateDraw: (id: string, updates: Partial<Draw>) => void;
-  addParticipant: (drawId: string, name: string, vk_url?: string) => void;
-  removeParticipant: (drawId: string, participantId: string) => void;
+  isLoading: boolean;
+  error: string | null;
+  
+  // Auth
+  login: (password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  checkAuth: () => Promise<void>;
+  
+  // Draws
+  loadDraws: () => Promise<void>;
+  loadDraw: (id: string) => Promise<Draw | null>;
+  createDraw: (title: string, description: string) => Promise<string>;
+  addParticipant: (drawId: string, name: string, vk_url?: string) => Promise<void>;
+  removeParticipant: (drawId: string, participantId: string) => Promise<void>;
   finalizeDraw: (drawId: string) => Promise<void>;
   executeDraw: (drawId: string) => Promise<void>;
+  
+  // Helpers
   getDraw: (id: string) => Draw | undefined;
   getAllDraws: () => Draw[];
+  setError: (error: string | null) => void;
 }
 
-export const useDrawStore = create<DrawStore>()(
-  persist(
-    (set, get) => ({
-      draws: [],
-      isAuthenticated: false,
+export const useDrawStore = create<DrawStore>()((set, get) => ({
+  draws: [],
+  isAuthenticated: false,
+  isLoading: false,
+  error: null,
 
-      login: (password: string) => {
-        // In production, this would be checked against env variable on backend
-        // For demo, we accept any non-empty password
-        if (password && password.length >= 4) {
-          set({ isAuthenticated: true });
-          return true;
-        }
-        return false;
-      },
-
-      logout: () => {
-        set({ isAuthenticated: false });
-      },
-
-      createDraw: (title: string, description: string) => {
-        const id = generateId();
-        const newDraw: Draw = {
-          id,
-          title,
-          description,
-          status: 'draft',
-          participants: [],
-          created_at: new Date().toISOString(),
-        };
-        set(state => ({ draws: [...state.draws, newDraw] }));
-        return id;
-      },
-
-      updateDraw: (id: string, updates: Partial<Draw>) => {
-        set(state => ({
-          draws: state.draws.map(d => d.id === id ? { ...d, ...updates } : d)
-        }));
-      },
-
-      addParticipant: (drawId: string, name: string, vk_url?: string) => {
-        set(state => {
-          const draw = state.draws.find(d => d.id === drawId);
-          if (!draw || draw.status !== 'draft') return state;
-          
-          const newParticipant: Participant = {
-            id: generateId(),
-            name,
-            vk_url: vk_url || undefined,
-            position: draw.participants.length + 1,
-          };
-          
-          return {
-            draws: state.draws.map(d => 
-              d.id === drawId 
-                ? { ...d, participants: [...d.participants, newParticipant] }
-                : d
-            )
-          };
-        });
-      },
-
-      removeParticipant: (drawId: string, participantId: string) => {
-        set(state => {
-          const draw = state.draws.find(d => d.id === drawId);
-          if (!draw || draw.status !== 'draft') return state;
-          
-          const updatedParticipants = draw.participants
-            .filter(p => p.id !== participantId)
-            .map((p, i) => ({ ...p, position: i + 1 }));
-          
-          return {
-            draws: state.draws.map(d => 
-              d.id === drawId 
-                ? { ...d, participants: updatedParticipants }
-                : d
-            )
-          };
-        });
-      },
-
-      finalizeDraw: async (drawId: string) => {
-        const draw = get().draws.find(d => d.id === drawId);
-        if (!draw || draw.status !== 'draft') return;
-        if (draw.participants.length < 2) throw new Error('Минимум 2 участника');
-        
-        const canonical = canonicalParticipants(draw.participants);
-        const hash = await sha256(canonical);
-        const futureRound = getCurrentDrandRound() + 5; // 5 rounds in the future (~15 sec)
-        
-        set(state => ({
-          draws: state.draws.map(d => 
-            d.id === drawId 
-              ? { 
-                  ...d, 
-                  status: 'finalized' as DrawStatus,
-                  participants_hash: hash,
-                  drand_chain_hash: '52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971',
-                  drand_round: futureRound,
-                  finalized_at: new Date().toISOString(),
-                }
-              : d
-          )
-        }));
-      },
-
-      executeDraw: async (drawId: string) => {
-        const draw = get().draws.find(d => d.id === drawId);
-        if (!draw || draw.status !== 'finalized') return;
-        if (!draw.drand_round || !draw.drand_chain_hash) return;
-        
-        try {
-          const { randomness, signature } = await simulateDrandRandomness(
-            draw.drand_round,
-            draw.drand_chain_hash
-          );
-          
-          const winnerIndex = determineWinner(randomness, draw.participants.length);
-          const winner = draw.participants[winnerIndex];
-          
-          set(state => ({
-            draws: state.draws.map(d => 
-              d.id === drawId 
-                ? { 
-                    ...d, 
-                    status: 'completed' as DrawStatus,
-                    randomness,
-                    signature,
-                    winner_id: winner.id,
-                    completed_at: new Date().toISOString(),
-                  }
-                : d
-            )
-          }));
-        } catch {
-          set(state => ({
-            draws: state.draws.map(d => 
-              d.id === drawId 
-                ? { ...d, status: 'failed' as DrawStatus }
-                : d
-            )
-          }));
-        }
-      },
-
-      getDraw: (id: string) => {
-        return get().draws.find(d => d.id === id);
-      },
-
-      getAllDraws: () => {
-        return get().draws;
-      },
-    }),
-    {
-      name: 'fairdraw-storage',
+  // Auth
+  login: async (password: string) => {
+    try {
+      set({ isLoading: true, error: null });
+      await api.login(password);
+      set({ isAuthenticated: true, isLoading: false });
+      return true;
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Ошибка входа', isLoading: false });
+      return false;
     }
-  )
-);
+  },
+
+  logout: async () => {
+    try {
+      await api.logout();
+      set({ isAuthenticated: false, draws: [] });
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  },
+
+  checkAuth: async () => {
+    try {
+      const { authenticated } = await api.getAuthStatus();
+      set({ isAuthenticated: authenticated });
+      if (authenticated) {
+        await get().loadDraws();
+      }
+    } catch (err) {
+      console.error('Auth check error:', err);
+    }
+  },
+
+  // Draws
+  loadDraws: async () => {
+    try {
+      set({ isLoading: true, error: null });
+      const draws = await api.getDraws();
+      set({ draws, isLoading: false });
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Ошибка загрузки', isLoading: false });
+    }
+  },
+
+  loadDraw: async (id: string) => {
+    try {
+      set({ isLoading: true, error: null });
+      const draw = await api.getDraw(id);
+      
+      // Обновляем в списке
+      set(state => {
+        const existingIndex = state.draws.findIndex(d => d.id === id);
+        if (existingIndex >= 0) {
+          const newDraws = [...state.draws];
+          newDraws[existingIndex] = draw;
+          return { draws: newDraws, isLoading: false };
+        }
+        return { draws: [...state.draws, draw], isLoading: false };
+      });
+      
+      return draw;
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Ошибка загрузки', isLoading: false });
+      return null;
+    }
+  },
+
+  createDraw: async (title: string, description: string) => {
+    try {
+      set({ isLoading: true, error: null });
+      const draw = await api.createDraw(title, description);
+      set(state => ({ draws: [draw, ...state.draws], isLoading: false }));
+      return draw.id;
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Ошибка создания', isLoading: false });
+      throw err;
+    }
+  },
+
+  addParticipant: async (drawId: string, name: string, vk_url?: string) => {
+    try {
+      set({ error: null });
+      const draw = get().draws.find(d => d.id === drawId);
+      if (!draw) throw new Error('Розыгрыш не найден');
+      
+      // Добавляем локально для быстрого UI
+      const newParticipant: Participant = {
+        id: Math.random().toString(36).substring(2, 8),
+        name,
+        vk_url,
+        position: draw.participants.length + 1,
+      };
+      
+      set(state => ({
+        draws: state.draws.map(d => 
+          d.id === drawId 
+            ? { ...d, participants: [...d.participants, newParticipant] }
+            : d
+        )
+      }));
+      
+      // Синхронизируем с сервером
+      const updatedDraws = draw.participants.map(p => ({
+        name: p.name,
+        vk_url: p.vk_url,
+      }));
+      updatedDraws.push({ name, vk_url });
+      
+      await api.updateParticipants(drawId, updatedDraws);
+      await get().loadDraw(drawId);
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Ошибка добавления' });
+      // Откатываем изменения
+      await get().loadDraw(drawId);
+    }
+  },
+
+  removeParticipant: async (drawId: string, participantId: string) => {
+    try {
+      set({ error: null });
+      const draw = get().draws.find(d => d.id === drawId);
+      if (!draw) throw new Error('Розыгрыш не найден');
+      
+      // Удаляем локально для быстрого UI
+      set(state => ({
+        draws: state.draws.map(d => 
+          d.id === drawId 
+            ? { 
+                ...d, 
+                participants: d.participants
+                  .filter(p => p.id !== participantId)
+                  .map((p, i) => ({ ...p, position: i + 1 }))
+              }
+            : d
+        )
+      }));
+      
+      // Синхронизируем с сервером
+      const updatedDraws = draw.participants
+        .filter(p => p.id !== participantId)
+        .map(p => ({ name: p.name, vk_url: p.vk_url }));
+      
+      await api.updateParticipants(drawId, updatedDraws);
+      await get().loadDraw(drawId);
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Ошибка удаления' });
+      await get().loadDraw(drawId);
+    }
+  },
+
+  finalizeDraw: async (drawId: string) => {
+    try {
+      set({ isLoading: true, error: null });
+      const draw = await api.finalizeDraw(drawId);
+      
+      set(state => ({
+        draws: state.draws.map(d => d.id === drawId ? draw : d),
+        isLoading: false,
+      }));
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Ошибка фиксации', isLoading: false });
+      throw err;
+    }
+  },
+
+  executeDraw: async (drawId: string) => {
+    try {
+      set({ isLoading: true, error: null });
+      const draw = await api.executeDraw(drawId);
+      
+      set(state => ({
+        draws: state.draws.map(d => d.id === drawId ? draw : d),
+        isLoading: false,
+      }));
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : 'Ошибка розыгрыша', isLoading: false });
+      throw err;
+    }
+  },
+
+  // Helpers
+  getDraw: (id: string) => {
+    return get().draws.find(d => d.id === id);
+  },
+
+  getAllDraws: () => {
+    return get().draws;
+  },
+
+  setError: (error: string | null) => {
+    set({ error });
+  },
+}));

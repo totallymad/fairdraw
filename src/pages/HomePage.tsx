@@ -1,6 +1,7 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useDrawStore } from '../store/drawStore';
-import { Users, Trophy, Clock, ChevronRight, Shuffle } from 'lucide-react';
+import { Users, Trophy, Clock, ChevronRight, Shuffle, Loader2 } from 'lucide-react';
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   draft: { label: 'Черновик', color: 'bg-amber-100 text-amber-700' },
@@ -10,7 +11,14 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 };
 
 export function HomePage() {
-  const { draws, isAuthenticated } = useDrawStore();
+  const { draws, isAuthenticated, isLoading, loadDraws } = useDrawStore();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadDraws();
+    }
+  }, [isAuthenticated, loadDraws]);
+
   const sortedDraws = [...draws].sort((a, b) => 
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
@@ -31,8 +39,15 @@ export function HomePage() {
         </p>
       </div>
 
+      {/* Loading */}
+      {isLoading && (
+        <div className="flex justify-center py-8">
+          <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+        </div>
+      )}
+
       {/* Draws List */}
-      {sortedDraws.length === 0 ? (
+      {!isLoading && sortedDraws.length === 0 ? (
         <div className="text-center py-16">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-slate-100 mb-4">
             <Users className="w-10 h-10 text-slate-400" />
@@ -54,7 +69,7 @@ export function HomePage() {
             </Link>
           )}
         </div>
-      ) : (
+      ) : !isLoading && (
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-slate-800">
             Все розыгрыши ({sortedDraws.length})

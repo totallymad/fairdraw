@@ -6,40 +6,60 @@ import confetti from 'canvas-confetti';
 import {
   ArrowLeft, Users, Trophy, Lock, Play, Copy, Download,
   ExternalLink, CheckCircle, AlertCircle, Clock, Hash,
-  ChevronDown, ChevronUp, Trash2, Plus, Share2
+  ChevronDown, ChevronUp, Trash2, Plus, Shield, Loader2
 } from 'lucide-react';
 
 export function DrawDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getDraw, addParticipant, removeParticipant, finalizeDraw, executeDraw, isAuthenticated } = useDrawStore();
+  const { getDraw, addParticipant, removeParticipant, finalizeDraw, executeDraw, isAuthenticated, loadDraw, isLoading, error, setError } = useDrawStore();
+  
   const draw = getDraw(id || '');
 
   const [newName, setNewName] = useState('');
   const [newVkUrl, setNewVkUrl] = useState('');
   const [showVerification, setShowVerification] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [error, setError] = useState('');
   const [isExecuting, setIsExecuting] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    if (!draw) {
-      navigate('/');
+    if (id) {
+      loadDraw(id).then(() => setIsLoaded(true));
     }
-  }, [draw, navigate]);
+  }, [id, loadDraw]);
 
-  if (!draw) return null;
+  if (!isLoaded || isLoading) {
+    return (
+      <div className="flex justify-center py-16">
+        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!draw) {
+    return (
+      <div className="text-center py-16">
+        <h1 className="text-2xl font-bold text-slate-800 mb-2">Розыгрыш не найден</h1>
+        <button
+          onClick={() => navigate('/')}
+          className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors"
+        >
+          На главную
+        </button>
+      </div>
+    );
+  }
 
   const winner = draw.winner_id ? draw.participants.find(p => p.id === draw.winner_id) : null;
-  const publicUrl = `${window.location.origin}/public/${draw.id}`;
+  const publicUrl = `${window.location.origin}/#/public/${draw.id}`;
 
-  const handleAddParticipant = (e: React.FormEvent) => {
+  const handleAddParticipant = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
-    addParticipant(draw.id, newName.trim(), newVkUrl.trim() || undefined);
+    await addParticipant(draw.id, newName.trim(), newVkUrl.trim() || undefined);
     setNewName('');
     setNewVkUrl('');
-    setError('');
   };
 
   const handleFinalize = async () => {
@@ -49,7 +69,7 @@ export function DrawDetailPage() {
     }
     try {
       await finalizeDraw(draw.id);
-      setError('');
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка фиксации');
     }
@@ -59,7 +79,6 @@ export function DrawDetailPage() {
     setIsExecuting(true);
     try {
       await executeDraw(draw.id);
-      // Confetti animation
       setTimeout(() => {
         confetti({
           particleCount: 100,
@@ -68,8 +87,8 @@ export function DrawDetailPage() {
           colors: ['#6366f1', '#8b5cf6', '#a855f7', '#ec4899']
         });
       }, 500);
-    } catch {
-      setError('Ошибка при получении случайности');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка при получении случайности');
     } finally {
       setIsExecuting(false);
     }
@@ -122,7 +141,6 @@ export function DrawDetailPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {/* Navigation */}
       <button
         onClick={() => navigate('/')}
         className="flex items-center gap-1.5 text-slate-500 hover:text-slate-700 transition-colors"
@@ -130,6 +148,14 @@ export function DrawDetailPage() {
         <ArrowLeft className="w-4 h-4" />
         Назад к списку
       </button>
+
+      {/* Error */}
+      {error && (
+        <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          {error}
+        </div>
+      )}
 
       {/* Draw Header */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
@@ -154,7 +180,6 @@ export function DrawDetailPage() {
           </span>
         </div>
 
-        {/* Actions */}
         <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-100">
           <button
             onClick={handleCopyLink}
@@ -180,14 +205,6 @@ export function DrawDetailPage() {
         </div>
       </div>
 
-      {/* Error */}
-      {error && (
-        <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          {error}
-        </div>
-      )}
-
       {/* Participants */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <div className="flex items-center justify-between mb-4">
@@ -202,7 +219,6 @@ export function DrawDetailPage() {
           )}
         </div>
 
-        {/* Add participant form */}
         {canEdit && (
           <form onSubmit={handleAddParticipant} className="mb-4 p-4 bg-slate-50 rounded-xl space-y-3">
             <div className="flex gap-2">
@@ -234,7 +250,6 @@ export function DrawDetailPage() {
           </form>
         )}
 
-        {/* Participants list */}
         {draw.participants.length === 0 ? (
           <p className="text-center text-slate-400 py-8">
             {canEdit ? 'Добавьте участников для начала розыгрыша' : 'Нет участников'}
@@ -293,7 +308,6 @@ export function DrawDetailPage() {
           </div>
         )}
 
-        {/* Finalize button */}
         {canFinalize && (
           <div className="mt-4 pt-4 border-t border-slate-100">
             <button
@@ -327,7 +341,7 @@ export function DrawDetailPage() {
               disabled={isExecuting}
               className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors font-medium"
             >
-              <Play className="w-4 h-4" />
+              {isExecuting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
               {isExecuting ? 'Получение случайности...' : 'Провести розыгрыш'}
             </button>
           )}
@@ -412,8 +426,7 @@ export function DrawDetailPage() {
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
           <h2 className="text-xl font-bold text-red-700 mb-1">Ошибка розыгрыша</h2>
           <p className="text-red-500 text-sm">
-            Не удалось получить или верифицировать случайность drand. 
-            Попробуйте повторить операцию.
+            Не удалось получить или верифицировать случайность drand.
           </p>
         </div>
       )}
