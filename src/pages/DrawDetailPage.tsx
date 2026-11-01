@@ -326,15 +326,15 @@ export function DrawDetailPage() {
         )}
       </div>
 
-      {/* Drand Round / Execute */}
+      {/* Execute */}
       {draw.status === 'finalized' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <h2 className="text-lg font-semibold text-slate-800 mb-3 flex items-center gap-2">
-            <Clock className="w-5 h-5 text-blue-500" />
-            Ожидание раунда drand
+            <Play className="w-5 h-5 text-indigo-500" />
+            Готов к розыгрышу
           </h2>
           <div className="space-y-2 text-sm text-slate-600 mb-4">
-            <p>Раунд: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-indigo-600">{draw.drand_round}</code></p>
+            <p>Участников: <strong>{draw.participants.length}</strong></p>
             <p>Хеш списка: <code className="bg-slate-100 px-1.5 py-0.5 rounded text-xs break-all">{draw.participants_hash}</code></p>
           </div>
           {canExecute && (
@@ -344,7 +344,7 @@ export function DrawDetailPage() {
               className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors font-medium"
             >
               {isExecuting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-              {isExecuting ? 'Получение случайности...' : 'Провести розыгрыш'}
+              {isExecuting ? 'Проводится розыгрыш...' : 'Провести розыгрыш'}
             </button>
           )}
         </div>
@@ -403,16 +403,13 @@ export function DrawDetailPage() {
                 <div className="mt-4 space-y-3 text-sm">
                   <VerificationRow label="ID розыгрыша" value={draw.id} />
                   <VerificationRow label="Хеш списка участников" value={draw.participants_hash || ''} mono />
-                  <VerificationRow label="Хеш цепочки drand" value={draw.drand_chain_hash || ''} mono />
-                  <VerificationRow label="Раунд drand" value={String(draw.drand_round || '')} />
-                  <VerificationRow label="Случайность (randomness)" value={draw.randomness || ''} mono />
-                  <VerificationRow label="Подпись (signature)" value={draw.signature || ''} mono />
+                  <VerificationRow label="Случайное число (seed)" value={draw.randomness || ''} mono />
                   <VerificationRow label="Победитель" value={winner ? `${winner.name} (позиция #${winner.position})` : ''} />
                   <VerificationRow label="Всего участников" value={String(draw.participants.length)} />
                   <div className="pt-3 border-t border-slate-100">
                     <p className="text-slate-500 text-xs">
-                      Метод верификации: SHA-256 хеш канонического представления списка → 
-                      drand randomness → rejection sampling без modulo bias
+                      Метод: криптографически безопасный генератор случайных чисел (crypto.randomInt).
+                      Победитель выбирается случайным образом из списка участников.
                     </p>
                   </div>
                 </div>

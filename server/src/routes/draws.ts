@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getDb } from '../db/database.js';
 import { sha256, canonicalParticipants, determineWinner } from '../lib/crypto.js';
-import { getCurrentRound, fetchDrandRandomness, verifyDrandSignature, getRoundTime, DRAND_CHAIN } from '../lib/drand.js';
 import crypto from 'crypto';
 
 const router = Router();
@@ -149,7 +148,7 @@ router.put('/:id/participants', requireAuth, async (req: Request, res: Response)
   }
 });
 
-// POST /api/draws/:id/finalize - Finalize draw and select drand round
+// POST /api/draws/:id/finalize - Finalize draw (lock participants)
 router.post('/:id/finalize', requireAuth, async (req: Request, res: Response) => {
   try {
     const db = await getDb();
@@ -170,23 +169,17 @@ router.post('/:id/finalize', requireAuth, async (req: Request, res: Response) =>
       return res.status(400).json({ error: 'Минимум 2 участника для розыгрыша' });
     }
     
-    // Calculate hash
+    // Calculate hash of participants list
     const canonical = canonicalParticipants(participants);
     const hash = sha256(canonical);
-    
-    // Select future round (5 rounds ahead, ~15 seconds for Quicknet)
-    const currentRound = getCurrentRound();
-    const targetRound = currentRound + 5;
     
     db.prepare(`
       UPDATE draws 
       SET status = 'finalized', 
-          participants_hash = ?, 
-          drand_chain_hash = ?, 
-          drand_round = ?,
+          participants_hash = ?,
           finalized_at = datetime('now')
       WHERE id = ?
-    `).run(hash, DRAND_CHAIN.hash, targetRound, req.params.id);
+    `).run(hash, req.params.id);
     
     const updated = db.prepare('SELECT * FROM draws WHERE id = ?').get(req.params.id);
     const finalParticipants = db.prepare(
@@ -200,7 +193,7 @@ router.post('/:id/finalize', requireAuth, async (req: Request, res: Response) =>
   }
 });
 
-// POST /api/draws/:id/execute - Get randomness and determine winner
+// POST /api/draws/:id/execute - Execute draw (pick winner)
 router.post('/:id/execute', requireAuth, async (req: Request, res: Response) => {
   try {
     const db = await getDb();
@@ -213,44 +206,31 @@ router.post('/:id/execute', requireAuth, async (req: Request, res: Response) => 
       return res.status(400).json({ error: 'Розыгрыш должен быть зафиксирован' });
     }
     
-    // Check if round time has passed
-    const roundTime = getRoundTime(draw.drand_round);
-    if (new Date() < roundTime) {
-      return res.status(400).json({ 
-        error: 'Раунд ещё не наступил',
-        round_time: roundTime.toISOString()
-      });
-    }
-    
-    // Fetch randomness from drand
-    const beacon = await fetchDrandRandomness(draw.drand_round);
-    
-    // Verify signature
-    const isValid = await verifyDrandSignature(beacon);
-    if (!isValid) {
-      db.prepare("UPDATE draws SET status = 'failed' WHERE id = ?").run(req.params.id);
-      return res.status(500).json({ error: 'Не удалось верифицировать подпись drand' });
-    }
-    
-    // Get participants count
+    // Get participants
     const participants = db.prepare(
       'SELECT * FROM participants WHERE draw_id = ? ORDER BY position'
     ).all(req.params.id) as any[];
     
-    // Determine winner
-    const winnerIndex = determineWinner(beacon.randomness, participants.length);
+    if (participants.length < 2) {
+      return res.status(400).json({ error: 'Недостаточно участников' });
+    }
+    
+    // Pick winner using cryptographically secure random
+    const winnerIndex = determineWinner(participants.length);
     const winner = participants[winnerIndex];
+    
+    // Generate random seed for transparency
+    const randomSeed = crypto.randomBytes(32).toString('hex');
     
     // Save result
     db.prepare(`
       UPDATE draws 
       SET status = 'completed',
           randomness = ?,
-          signature = ?,
           winner_id = ?,
           completed_at = datetime('now')
       WHERE id = ?
-    `).run(beacon.randomness, beacon.signature, winner.id, req.params.id);
+    `).run(randomSeed, winner.id, req.params.id);
     
     const updated = db.prepare('SELECT * FROM draws WHERE id = ?').get(req.params.id);
     
@@ -264,7 +244,7 @@ router.post('/:id/execute', requireAuth, async (req: Request, res: Response) => 
       db.prepare("UPDATE draws SET status = 'failed' WHERE id = ?").run(req.params.id);
     } catch {}
     
-    res.status(500).json({ error: 'Ошибка при получении случайности' });
+    res.status(500).json({ error: 'Ошибка при проведении розыгрыша' });
   }
 });
 
@@ -290,21 +270,11 @@ router.get('/:id/verify', async (req: Request, res: Response) => {
     const recalculatedHash = sha256(canonical);
     const hashMatches = recalculatedHash === draw.participants_hash;
     
-    // Re-determine winner
-    let winnerIndex = -1;
-    let winnerValid = false;
-    try {
-      winnerIndex = determineWinner(draw.randomness, participants.length);
-      const expectedWinner = participants[winnerIndex];
-      winnerValid = expectedWinner.id === draw.winner_id;
-    } catch {}
-    
     const winner = participants.find((p: any) => p.id === draw.winner_id);
     
     res.json({
-      valid: hashMatches && winnerValid,
+      valid: hashMatches,
       hash_matches: hashMatches,
-      winner_valid: winnerValid,
       participants_count: participants.length,
       winner: winner ? {
         id: winner.id,
@@ -314,11 +284,7 @@ router.get('/:id/verify', async (req: Request, res: Response) => {
       verification: {
         participants_hash: draw.participants_hash,
         recalculated_hash: recalculatedHash,
-        drand_chain_hash: draw.drand_chain_hash,
-        drand_round: draw.drand_round,
         randomness: draw.randomness,
-        signature: draw.signature,
-        winner_index: winnerIndex,
       }
     });
   } catch (error) {

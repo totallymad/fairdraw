@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { createHash, randomInt } from 'crypto';
 
 // SHA-256 hash
 export function sha256(data: string): string {
@@ -17,22 +17,14 @@ export function canonicalParticipants(
   })));
 }
 
-// Determine winner without modulo bias using rejection sampling
-export function determineWinner(randomness: string, totalParticipants: number): number {
+// Determine winner using cryptographically secure random
+export function determineWinner(totalParticipants: number): number {
   if (totalParticipants < 2) throw new Error('Need at least 2 participants');
-  
-  const chunks = randomness.match(/.{1,8}/g) || [];
-  
-  for (const chunk of chunks) {
-    const value = parseInt(chunk, 16);
-    const maxValid = Math.floor(0xFFFFFFFF / totalParticipants) * totalParticipants;
-    
-    if (value < maxValid) {
-      return value % totalParticipants;
-    }
-  }
-  
-  // Extremely unlikely fallback
-  const fallback = parseInt(randomness.slice(0, 8), 16);
-  return fallback % totalParticipants;
+  // crypto.randomInt is cryptographically secure
+  return randomInt(0, totalParticipants);
+}
+
+// Generate unique ID
+export function generateId(): string {
+  return randomInt(100000, 999999).toString(36) + Date.now().toString(36);
 }
