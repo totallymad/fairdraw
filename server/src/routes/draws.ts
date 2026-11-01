@@ -19,13 +19,19 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const db = await getDb();
     const draws = db.prepare(`
-      SELECT d.*, 
-        (SELECT COUNT(*) as count FROM participants WHERE draw_id = d.id) as participant_count
-      FROM draws d 
-      ORDER BY d.created_at DESC
-    `).all();
+      SELECT * FROM draws 
+      ORDER BY created_at DESC
+    `).all() as any[];
     
-    res.json(draws);
+    // Добавляем participants к каждому розыгрышу
+    const drawsWithParticipants = draws.map(draw => {
+      const participants = db.prepare(
+        'SELECT * FROM participants WHERE draw_id = ? ORDER BY position'
+      ).all(draw.id);
+      return { ...draw, participants };
+    });
+    
+    res.json(drawsWithParticipants);
   } catch (error) {
     console.error('Error listing draws:', error);
     res.status(500).json({ error: 'Внутренняя ошибка сервера' });
