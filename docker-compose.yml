@@ -16,6 +16,7 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - SESSION_SECRET=${SESSION_SECRET}
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3001}
+      - USE_HTTPS=${USE_HTTPS:-false}
       - NODE_OPTIONS=--max-old-space-size=256
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
