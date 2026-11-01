@@ -14,12 +14,16 @@ export function HomePage() {
   const { draws, isAuthenticated, isLoading, loadDraws } = useDrawStore();
 
   useEffect(() => {
-    if (isAuthenticated) {
-      loadDraws();
-    }
-  }, [isAuthenticated, loadDraws]);
+    // Загружаем розыгрыши для всех пользователей
+    loadDraws();
+  }, [loadDraws]);
 
-  const sortedDraws = [...draws].sort((a, b) => 
+  // Для неавторизованных показываем только завершённые розыгрыши
+  const visibleDraws = isAuthenticated 
+    ? draws 
+    : draws.filter(d => d.status === 'completed');
+
+  const sortedDraws = [...visibleDraws].sort((a, b) => 
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
 
@@ -34,8 +38,8 @@ export function HomePage() {
           Прозрачные розыгрыши
         </h1>
         <p className="text-lg text-slate-500 max-w-2xl mx-auto">
-          FairDraw использует криптографическую случайность drand для проведения 
-          честных и проверяемых розыгрышей. Каждый результат можно верифицировать.
+          FairDraw проводит честные и проверяемые розыгрыши с использованием 
+          криптографически безопасного генератора случайных чисел.
         </p>
       </div>
 
