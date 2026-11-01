@@ -14,7 +14,9 @@ export function DrawDetailPage() {
   const navigate = useNavigate();
   const { getDraw, addParticipant, removeParticipant, finalizeDraw, executeDraw, isAuthenticated, loadDraw, isLoading, error, setError } = useDrawStore();
   
-  const draw = getDraw(id || '');
+  const drawData = getDraw(id || '');
+  // Защита: если participants отсутствует, используем пустой массив
+  const draw = drawData ? { ...drawData, participants: drawData.participants || [] } : null;
 
   const [newName, setNewName] = useState('');
   const [newVkUrl, setNewVkUrl] = useState('');

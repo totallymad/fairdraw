@@ -183,7 +183,11 @@ router.post('/:id/finalize', requireAuth, async (req: Request, res: Response) =>
     `).run(hash, DRAND_CHAIN.hash, targetRound, req.params.id);
     
     const updated = db.prepare('SELECT * FROM draws WHERE id = ?').get(req.params.id);
-    res.json(updated);
+    const participants = db.prepare(
+      'SELECT * FROM participants WHERE draw_id = ? ORDER BY position'
+    ).all(req.params.id);
+    
+    res.json({ ...updated, participants });
   } catch (error) {
     console.error('Error finalizing draw:', error);
     res.status(500).json({ error: 'Внутренняя ошибка сервера' });
@@ -243,7 +247,11 @@ router.post('/:id/execute', requireAuth, async (req: Request, res: Response) => 
     `).run(beacon.randomness, beacon.signature, winner.id, req.params.id);
     
     const updated = db.prepare('SELECT * FROM draws WHERE id = ?').get(req.params.id);
-    res.json({ ...updated, winner });
+    const finalParticipants = db.prepare(
+      'SELECT * FROM participants WHERE draw_id = ? ORDER BY position'
+    ).all(req.params.id);
+    
+    res.json({ ...updated, participants: finalParticipants, winner });
   } catch (error) {
     console.error('Error executing draw:', error);
     
