@@ -16,6 +16,9 @@ const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const SESSION_SECRET = process.env.SESSION_SECRET || 'fairdraw-dev-secret-change-in-production';
 
+// Trust proxy (Nginx) - важно для корректной работы сессий за reverse proxy
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: {
@@ -55,11 +58,13 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Session
+// Если за Nginx с HTTPS, установите USE_HTTPS=true
 const isHttps = process.env.USE_HTTPS === 'true' || process.env.CORS_ORIGIN?.startsWith('https://');
 app.use(session({
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
+  proxy: isHttps, // доверять proxy заголовкам
   cookie: {
     secure: isHttps,
     httpOnly: true,
