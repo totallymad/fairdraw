@@ -147,7 +147,6 @@ export const useDrawStore = create<DrawStore>()((set, get) => ({
       await get().loadDraw(drawId);
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Ошибка добавления' });
-      // Откатываем изменения
       await get().loadDraw(drawId);
     }
   },

@@ -84,12 +84,9 @@ export function PublicDrawPage() {
       finalized_at: draw.finalized_at,
       completed_at: draw.completed_at,
       verification: {
-        method: 'SHA-256 + drand Quicknet + rejection sampling',
-        chain_hash: draw.drand_chain_hash,
-        round: draw.drand_round,
+        method: 'crypto.randomInt (cryptographically secure)',
         participants_hash: draw.participants_hash,
         randomness: draw.randomness,
-        signature: draw.signature,
         total_participants: draw.participants.length,
         winner_position: winner?.position,
       }
@@ -289,18 +286,14 @@ export function PublicDrawPage() {
               <div className="mt-4 space-y-3 text-sm">
                 <VRow label="ID розыгрыша" value={draw.id} />
                 <VRow label="Хеш списка" value={draw.participants_hash || ''} mono />
-                <VRow label="Цепочка drand" value={draw.drand_chain_hash || ''} mono />
-                <VRow label="Раунд" value={String(draw.drand_round || '')} />
-                <VRow label="Randomness" value={draw.randomness || ''} mono />
-                <VRow label="Signature" value={draw.signature || ''} mono />
+                <VRow label="Случайное число (seed)" value={draw.randomness || ''} mono />
                 <VRow label="Победитель" value={winner ? `${winner.name} (#${winner.position})` : ''} />
                 <VRow label="Участников" value={String(draw.participants.length)} />
                 <div className="pt-3 border-t border-slate-100">
                   <p className="text-xs text-slate-500">
-                    <strong>Как проверить:</strong> Вычислите SHA-256 хеш канонического JSON списка участников. 
-                    Убедитесь, что randomness получена из drand API для указанного раунда и цепочки. 
-                    Проверьте BLS-подпись. Победитель определяется через rejection sampling: 
-                    первые 8 hex-символов randomness → число → mod количество_участников.
+                    <strong>Как работает:</strong> Победитель выбирается с помощью криптографически 
+                    безопасного генератора случайных чисел (crypto.randomInt в Node.js). 
+                    Хеш списка участников фиксируется при финализации и не может быть изменён.
                   </p>
                 </div>
               </div>
